@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bhalobasa Oodlabari — Dashboard</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    margin: 0; padding: 16px; background: #f4f6f9; color: #1f2937;
+    max-width: 480px; margin-left: auto; margin-right: auto;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px 0; color: #1f4e78; }
+  .subtitle { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 14px; margin: 0 0 10px 0; color: #1f4e78; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi { background: #eaf1f8; border-radius: 8px; padding: 10px; text-align: center; }
+  .kpi-label { font-size: 10px; color: #6b7280; text-transform: uppercase; }
+  .kpi-value { font-size: 18px; font-weight: 700; color: #1f4e78; margin-top: 2px; }
+  label { display: block; font-size: 12px; color: #374151; margin: 10px 0 4px 0; font-weight: 600; }
+  input, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; background: #fff; }
+  button.primary {
+    width: 100%; padding: 13px; margin-top: 14px; background: #1f4e78; color: #fff;
+    border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:active { background: #163a5c; }
+  .result-box { margin-top: 12px; padding: 12px; border-radius: 8px; font-weight: 600; text-align: center; }
+  .result-available { background: #e1f5ee; color: #085041; }
+  .result-unavailable { background: #fcebeb; color: #791f1f; }
+  .msg { margin-top: 10px; font-size: 13px; padding: 10px; border-radius: 8px; }
+  .msg-success { background: #eaf3de; color: #27500a; }
+  .msg-error { background: #fcebeb; color: #791f1f; }
+  #signinArea { text-align: center; padding: 40px 0; }
+  #app { display: none; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #6b7280; margin-bottom: 10px; }
+  .topbar button { background: none; border: none; color: #1f4e78; font-size: 12px; text-decoration: underline; cursor: pointer; padding: 0; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  canvas { max-height: 160px; }
+</style>
+</head>
+<body>
+
+<h1>Bhalobasa Nature Resort (Oodlabari)</h1>
+<div class="subtitle">7 rooms — Availability, bookings, and dashboard</div>
+
+<div id="signinArea">
+  <p>Sign in with your Google account to continue.</p>
+  <div id="googleSignInButton"></div>
+  <p id="signinError" class="msg msg-error" style="display:none;"></p>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <span id="whoami"></span>
+    <button onclick="signOut()">Sign out</button>
+  </div>
+
+  <div class="card">
+    <h2>This week</h2>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Occupancy</div><div class="kpi-value" id="kpiOcc">—</div></div>
+      <div class="kpi"><div class="kpi-label">ADR</div><div class="kpi-value" id="kpiAdr">—</div></div>
+      <div class="kpi"><div class="kpi-label">RevPAR</div><div class="kpi-value" id="kpiRevpar">—</div></div>
+      <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value" id="kpiTotalRev">—</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Revenue trend</h2>
+    <canvas id="revenueChart"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Check availability</h2>
+    <div class="row2">
+      <div><label>Check-in</label><input type="date" id="availCheckIn"></div>
+      <div><label>Check-out</label><input type="date" id="availCheckOut"></div>
+    </div>
+    <label>Rooms needed</label>
+    <input type="number" id="availRooms" value="1" min="1" max="7">
+    <button class="primary" onclick="checkAvailability()">Check availability</button>
+    <div id="availResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Add advance booking</h2>
+    <label>Guest name</label><input type="text" id="bName">
+    <label>Contact</label><input type="text" id="bContact">
+    <div class="row2">
+      <div><label>Check-in</label><input type="date" id="bCheckIn"></div>
+      <div><label>Check-out</label><input type="date" id="bCheckOut"></div>
+    </div>
+    <div class="row2">
+      <div><label>Pax</label><input type="number" id="bPax" min="1"></div>
+      <div><label>Rooms</label><input type="number" id="bRooms" min="1" max="7"></div>
+    </div>
+    <label>Room type</label>
+    <select id="bRoomType">
+      <option>Super Deluxe (AC)</option>
+      <option>Deluxe (Non-AC)</option>
+    </select>
+    <label>Meal plan</label>
+    <select id="bMealPlan">
+      <option>Breakfast Included</option>
+      <option>Full Meal Plan</option>
+    </select>
+    <div class="row2">
+      <div><label>Agreed rate (incl. GST)</label><input type="number" id="bRate" min="0"></div>
+      <div><label>Discount</label><input type="number" id="bDiscount" value="0" min="0"></div>
+    </div>
+    <label>Advance received</label><input type="number" id="bAdvance" min="0">
+    <label>Advance payment mode</label>
+    <select id="bPayMode"><option>Cash</option><option>UPI</option></select>
+    <div class="row2">
+      <div><label>Transport required?</label><select id="bTransport"><option>No</option><option>Yes</option></select></div>
+      <div><label>Sightseeing?</label><select id="bSightseeing"><option>No</option><option>Yes</option></select></div>
+    </div>
+    <label>Have pets?</label>
+    <select id="bPets"><option>No</option><option>Yes</option></select>
+    <label>Notes / comments</label><input type="text" id="bNotes">
+    <button class="primary" onclick="addBooking()">Add booking</button>
+    <div id="bookingMsg"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURE THESE TWO VALUES
+// ============================================================
+const CLIENT_ID = "1074798345971-1shp656nhsm3vh4o6s1c08dvlvvpbv3h.apps.googleusercontent.com";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxWo9IN7KghuTSd_rwmxrPssXe92lFAaM9TXsqJ0gsPBS5gnlB0ASRnYo74z9A6C29f/exec";
+// ============================================================
+
+let idToken = null;
+let revenueChart = null;
+
+function handleCredentialResponse(response) {
+  idToken = response.credential;
+  document.getElementById("signinArea").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  loadWhoAmI();
+  loadDashboard();
+}
+
+function signOut() {
+  idToken = null;
+  document.getElementById("app").style.display = "none";
+  document.getElementById("signinArea").style.display = "block";
+  google.accounts.id.disableAutoSelect();
+}
+
+window.onload = function () {
+  google.accounts.id.initialize({
+    client_id: CLIENT_ID,
+    callback: handleCredentialResponse
+  });
+  google.accounts.id.renderButton(
+    document.getElementById("googleSignInButton"),
+    { theme: "filled_blue", size: "large", text: "signin_with" }
+  );
+};
+
+async function apiCall(action, params) {
+  const qs = new URLSearchParams({ action, token: idToken, ...params });
+  const res = await fetch(`${APPS_SCRIPT_URL}?${qs.toString()}`);
+  const data = await res.json();
+  if (data.error) {
+    if (data.error.toLowerCase().includes("unauthorized")) {
+      document.getElementById("signinError").textContent = data.error;
+      document.getElementById("signinError").style.display = "block";
+      signOut();
+    }
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+async function loadWhoAmI() {
+  try {
+    const data = await apiCall("whoami", {});
+    document.getElementById("whoami").textContent = data.email;
+  } catch (e) { /* handled in apiCall */ }
+}
+
+async function loadDashboard() {
+  try {
+    const d = await apiCall("dashboard", {});
+    document.getElementById("kpiOcc").textContent = (d.occupancy * 100).toFixed(1) + "%";
+    document.getElementById("kpiAdr").textContent = "₹" + Math.round(d.adr).toLocaleString();
+    document.getElementById("kpiRevpar").textContent = "₹" + Math.round(d.revpar).toLocaleString();
+    document.getElementById("kpiTotalRev").textContent = "₹" + Math.round(d.totalRevenue).toLocaleString();
+
+    const labels = d.trend.map(t => new Date(t.week).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }));
+    const values = d.trend.map(t => t.revenue);
+    if (revenueChart) revenueChart.destroy();
+    revenueChart = new Chart(document.getElementById("revenueChart"), {
+      type: 'line',
+      data: { labels, datasets: [{ data: values, borderColor: '#1f4e78', backgroundColor: 'rgba(31,78,120,0.1)', fill: true, tension: 0.2 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  } catch (e) { console.error(e); }
+}
+
+async function checkAvailability() {
+  const checkIn = document.getElementById("availCheckIn").value;
+  const checkOut = document.getElementById("availCheckOut").value;
+  const rooms = document.getElementById("availRooms").value;
+  const box = document.getElementById("availResult");
+  if (!checkIn || !checkOut) { box.innerHTML = `<div class="msg msg-error">Pick both dates</div>`; return; }
+  try {
+    const d = await apiCall("availability", { checkIn, checkOut, rooms });
+    const cls = d.status === "AVAILABLE" ? "result-available" : "result-unavailable";
+    box.innerHTML = `<div class="result-box ${cls}">${d.status} — ${d.available} of 7 rooms free (${d.booked} already booked)</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="msg msg-error">${e.message}</div>`;
+  }
+}
+
+async function addBooking() {
+  const msg = document.getElementById("bookingMsg");
+  const fields = {
+    name: bName.value, contact: bContact.value, checkIn: bCheckIn.value, checkOut: bCheckOut.value,
+    pax: bPax.value, rooms: bRooms.value, roomType: bRoomType.value, mealPlan: bMealPlan.value,
+    rate: bRate.value, discount: bDiscount.value, advance: bAdvance.value, paymentMode: bPayMode.value,
+    transport: bTransport.value, sightseeing: bSightseeing.value, pets: bPets.value, notes: bNotes.value
+  };
+  if (!fields.name || !fields.checkIn || !fields.checkOut || !fields.rooms) {
+    msg.innerHTML = `<div class="msg msg-error">Name, dates, and rooms are required</div>`;
+    return;
+  }
+  try {
+    const d = await apiCall("addBooking", fields);
+    msg.innerHTML = `<div class="msg msg-success">Booking added — due payment ₹${Math.round(d.dueCalculated).toLocaleString()}</div>`;
+    ["bName","bContact","bCheckIn","bCheckOut","bPax","bRooms","bRate","bDiscount","bAdvance","bNotes"].forEach(id => document.getElementById(id).value = "");
+    loadDashboard();
+  } catch (e) {
+    msg.innerHTML = `<div class="msg msg-error">${e.message}</div>`;
+  }
+}
+</script>
+</body>
+</html>
