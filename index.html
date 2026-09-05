@@ -178,16 +178,30 @@ window.onload = function () {
   );
 };
 
+let jsonpCounter = 0;
+function jsonpRequest(action, params) {
+  return new Promise((resolve, reject) => {
+    const callbackName = "jsonpCallback_" + (jsonpCounter++);
+    const qs = new URLSearchParams({ action, token: idToken, callback: callbackName, ...params });
+    const script = document.createElement("script");
+    script.src = `${APPS_SCRIPT_URL}?${qs.toString()}`;
+    const timeout = setTimeout(() => {
+      reject(new Error("Request timed out"));
+      cleanup();
+    }, 15000);
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+    }
+    window[callbackName] = (data) => { resolve(data); cleanup(); };
+    script.onerror = () => { reject(new Error("Failed to reach the server")); cleanup(); };
+    document.body.appendChild(script);
+  });
+}
+
 async function apiCall(action, params) {
-  const qs = new URLSearchParams({ action, token: idToken, ...params });
-  const res = await fetch(`${APPS_SCRIPT_URL}?${qs.toString()}`);
-  const rawText = await res.text();
-  let data;
-  try {
-    data = JSON.parse(rawText);
-  } catch (parseErr) {
-    throw new Error("Non-JSON response (first 300 chars): " + rawText.substring(0, 300));
-  }
+  const data = await jsonpRequest(action, params);
   if (data.error) {
     if (data.error.toLowerCase().includes("unauthorized")) {
       document.getElementById("signinError").textContent = data.error;
